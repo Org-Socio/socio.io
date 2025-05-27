@@ -1,162 +1,71 @@
-/**
- * Build script for Socio.io backend
- * 
- * This script automates the build process for the backend:
- * - Validates the environment
- * - Installs dependencies
- * - Runs linting (if configured)
- * - Creates necessary directories
- * - Copies static files
- * - Generates build artifacts
- */
-
+// Build script for the extension
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-// Configuration
-const config = {
-  requiredDirs: ['logs'],
-  requiredFiles: ['.env', 'server.js', 'content_filter.js', 'text_analysis.js'],
-  buildDir: 'build',
-  filesToCopy: [
-    'server.js',
-    'content_filter.js',
-    'text_analysis.js',
-    'package.json',
-    'package-lock.json',
-    'Procfile',
-    '.env',
-    'render.yaml'
-  ]
-};
+// Define paths
+const rootDir = path.resolve(__dirname, '..');
+const extensionDir = path.join(rootDir, 'browser-extension');
+const distDir = path.join(rootDir, 'dist');
 
-// Utility functions
-function log(message, type = 'info') {
-  const colors = {
-    info: '\x1b[36m%s\x1b[0m',    // Cyan
-    success: '\x1b[32m%s\x1b[0m',  // Green
-    warning: '\x1b[33m%s\x1b[0m',  // Yellow
-    error: '\x1b[31m%s\x1b[0m'     // Red
-  };
-  
-  console.log(colors[type], `[${type.toUpperCase()}] ${message}`);
-}
-
-function ensureDirectoryExists(dir) {
+// Create directory if it doesn't exist
+function ensureDirExists(dir) {
   if (!fs.existsSync(dir)) {
-    log(`Creating directory: ${dir}`, 'info');
     fs.mkdirSync(dir, { recursive: true });
   }
 }
 
-function validateEnvironment() {
-  log('Validating environment...', 'info');
-  
-  // Check Node.js version
-  const nodeVersion = process.version;
-  log(`Node.js version: ${nodeVersion}`, 'info');
-  
-  const versionNum = nodeVersion.slice(1).split('.').map(Number);
-  if (versionNum[0] < 14) {
-    log('Node.js version 14 or higher is required', 'error');
-    process.exit(1);
-  }
-  
-  // Check required directories
-  config.requiredDirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      log(`Creating required directory: ${dir}`, 'info');
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
-  
-  // Check required files
-  const missingFiles = config.requiredFiles.filter(file => !fs.existsSync(file));
-  if (missingFiles.length > 0) {
-    log(`Missing required files: ${missingFiles.join(', ')}`, 'error');
-    process.exit(1);
-  }
-  
-  log('Environment validation completed', 'success');
+// Copy a file
+function copyFile(src, dest) {
+  fs.copyFileSync(src, dest);
+  console.log(`Copied ${src} to ${dest}`);
 }
 
-function installDependencies() {
-  log('Installing dependencies...', 'info');
-  try {
-    execSync('npm install', { stdio: 'inherit' });
-    log('Dependencies installed successfully', 'success');
-  } catch (error) {
-    log(`Failed to install dependencies: ${error.message}`, 'error');
-    process.exit(1);
-  }
-}
-
-function cleanBuildDirectory() {
-  log(`Cleaning build directory: ${config.buildDir}`, 'info');
-  if (fs.existsSync(config.buildDir)) {
-    fs.rmSync(config.buildDir, { recursive: true, force: true });
-  }
-  ensureDirectoryExists(config.buildDir);
-  log('Build directory cleaned', 'success');
-}
-
-function copyFiles() {
-  log('Copying files to build directory...', 'info');
-  
-  config.filesToCopy.forEach(file => {
-    if (fs.existsSync(file)) {
-      const destPath = path.join(config.buildDir, file);
-      const destDir = path.dirname(destPath);
-      
-      // Ensure destination directory exists
-      ensureDirectoryExists(destDir);
-      
-      // Copy the file
-      fs.copyFileSync(file, destPath);
-      log(`Copied: ${file}`, 'info');
-    } else {
-      log(`Warning: File not found: ${file}`, 'warning');
-    }
-  });
-  
-  log('Files copied successfully', 'success');
-}
-
-function createBuildArtifacts() {
-  log('Creating build artifacts...', 'info');
-  
-  // Create a build info file
-  const buildInfo = {
-    version: require('./package.json').version,
-    buildDate: new Date().toISOString(),
-    nodeVersion: process.version
-  };
-  
-  fs.writeFileSync(
-    path.join(config.buildDir, 'build-info.json'),
-    JSON.stringify(buildInfo, null, 2)
-  );
-  
-  log('Build artifacts created', 'success');
-}
-
-// Main build process
+// Main build function
 function build() {
-  const startTime = Date.now();
-  log('Starting build process...', 'info');
+  console.log('Starting build process...');
+  
+  // Ensure directories exist
+  ensureDirExists(distDir);
   
   try {
-    validateEnvironment();
-    installDependencies();
-    cleanBuildDirectory();
-    copyFiles();
-    createBuildArtifacts();
+    // Clean previous build if exists
+    if (fs.existsSync(distDir)) {
+      console.log('Cleaning previous build...');
+      fs.rmSync(distDir, { recursive: true, force: true });
+      ensureDirExists(distDir);
+    }
     
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    log(`Build completed successfully in ${duration}s`, 'success');
+    // Copy extension files to dist
+    console.log('Copying extension files...');
+    
+    // Copy browser extension files
+    const extensionFiles = fs.readdirSync(extensionDir);
+    extensionFiles.forEach(file => {
+      const srcPath = path.join(extensionDir, file);
+      const destPath = path.join(distDir, file);
+      
+      if (fs.statSync(srcPath).isDirectory()) {
+        // Copy directory recursively
+        ensureDirExists(destPath);
+        const nestedFiles = fs.readdirSync(srcPath);
+        nestedFiles.forEach(nestedFile => {
+          copyFile(
+            path.join(srcPath, nestedFile),
+            path.join(destPath, nestedFile)
+          );
+        });
+      } else {
+        // Copy file
+        copyFile(srcPath, destPath);
+      }
+    });
+    
+    console.log('Build completed successfully!');
+    console.log(`Output directory: ${distDir}`);
+    
   } catch (error) {
-    log(`Build failed: ${error.message}`, 'error');
+    console.error('Build failed:', error);
     process.exit(1);
   }
 }
