@@ -14,7 +14,7 @@ A Chrome extension that filters and moderates inappropriate content on the web.
 
 ---
 **Manual Installation (Developer Mode):**
-1. Download from [Releases](https://github.com/yourusername/socio-io/releases)
+1. Download from [Releases](https://github.com/Org-Socio/socio.io/releases/download/v1/extension.zip)
 2. Unzip → Go to `chrome://extensions/`
 3. Enable *Developer mode* → Click **Load unpacked**
 4. Select the unzipped folder to install
